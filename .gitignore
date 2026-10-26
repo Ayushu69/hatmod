@@ -1,0 +1,10 @@
+data/
+.venv/
+*.pt
+*.bin
+__pycache__/
+results/checkpoints/
+results/*.parquet
+results/*sample*.csv
+results/errors.csv
+results/audit_100.csv

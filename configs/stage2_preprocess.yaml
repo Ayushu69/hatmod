@@ -1,0 +1,10 @@
+stage: "stage2_preprocess"
+seed: 42
+raw_data_path: "data/raw/hinghate/hinglish_corpus_final.tsv"
+processed_dir: "data/processed"
+runs_csv_path: "results/runs.csv"
+train_ratio: 0.80
+val_ratio: 0.10
+test_ratio: 0.10
+subsample_non_hate_multiplier: 3
+tokenizer_name: "google/muril-base-cased"

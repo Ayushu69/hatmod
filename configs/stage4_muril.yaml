@@ -1,0 +1,17 @@
+stage: "stage4_muril"
+seed: 42
+model_name: "google/muril-base-cased"
+processed_dir: "data/processed"
+results_dir: "results"
+checkpoints_dir: "results/checkpoints"
+runs_csv_path: "results/runs.csv"
+output_preds_path: "results/preds_muril_seed42.parquet"
+output_md_path: "results/muril_seed42_metrics.md"
+num_epochs: 3
+per_device_batch_size: 8
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-5
+weight_decay: 0.01
+warmup_ratio: 0.10
+max_len: 64
+fp16: false

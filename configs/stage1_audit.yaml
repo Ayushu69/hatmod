@@ -1,0 +1,8 @@
+stage: "stage1_audit"
+seed: 42
+raw_data_path: "data/raw/hinghate/hinglish_corpus_final.tsv"
+output_dir: "results"
+audit_md_path: "results/audit.md"
+sample_csv_path: "results/label_sample.csv"
+runs_csv_path: "results/runs.csv"
+sample_size_per_class: 50

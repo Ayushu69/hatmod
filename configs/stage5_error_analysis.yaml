@@ -1,0 +1,15 @@
+stage: "stage5_error_analysis"
+seed: 42
+preds_files:
+  - "results/preds_muril_seed42.parquet"
+  - "results/preds_muril_seed43.parquet"
+  - "results/preds_muril_seed44.parquet"
+train_parquet_path: "data/processed/train.parquet"
+test_parquet_path: "data/processed/test.parquet"
+val_parquet_path: "data/processed/val.parquet"
+errors_csv_path: "results/errors.csv"
+audit_100_csv_path: "results/audit_100.csv"
+output_md_path: "results/error_analysis.md"
+runs_csv_path: "results/runs.csv"
+n_bootstrap: 1000
+nn_cosine_threshold: 0.80
