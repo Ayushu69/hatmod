@@ -1,6 +1,6 @@
 # Hinglish Hate-Speech Detection (HINGHATE + MuRIL)
 
-A reproducible pipeline for detecting hateful and hostile comments in **Hinglish** (Hindi-English code-mixed social media text). It audits and cleans the HINGHATE corpus, builds a leakage-free train/val/test split, trains a classical baseline (TF-IDF + Logistic Regression), fine-tunes **MuRIL** (`google/muril-base-cased`) on a 6 GB consumer GPU, and then checks how much the results can be trusted, including a hand audit of the dataset's labels.
+A reproducible pipeline for detecting hateful and hostile comments in **Hinglish** (Hindi-English code-mixed social media text). It audits and cleans the HINGHATE corpus, builds a leakage-free train/val/test split, trains a classical baseline (TF-IDF + Logistic Regression), fine-tunes **MuRIL** (`google/muril-base-cased`) on a 6 GB consumer GPU, and then checks how much the results can be trusted, including a hand audit of the dataset's labels against the dataset's own documented definition of hate.
 
 > **Status: Stages 1-6 complete on HINGHATE (in-dataset). The external test (HASOC) is pending data access.**
 > This README documents what was done, why, and what the numbers do and do not mean.
@@ -33,9 +33,9 @@ A reproducible pipeline for detecting hateful and hostile comments in **Hinglish
 | Data | HINGHATE: 248,129 rows, **136,632 unique** after deduplication, about 8% hate |
 | Baseline | TF-IDF (char + word n-grams) + Logistic Regression: **hate-class F1 0.524** |
 | Main model | MuRIL fine-tuned. Single model, 3 seeds: **hate F1 0.784 +/- 0.003**. 3-seed probability ensemble: **hate F1 0.802** (95% CI 0.784-0.821), macro-F1 0.893, PR-AUC 0.890 |
-| Label audit | Of 100 random test rows labelled "hate", one annotator judged **17% strict group-targeted hate**, 22% personal abuse, 19% political criticism, 42% no visible hostility |
-| What the model learned | It largely reproduces HINGHATE's (broad) labelling: it flagged about 69% of the rows judged "no visible hostility" and 95% of personal-abuse rows |
-| Verdict | HINGHATE is enough to train and benchmark **within HINGHATE**. It is **not** enough to claim general hate-speech detection: there is no external test, and the positive label is broader than a strict hate definition |
+| Label audit | Of 100 random test rows labelled "hate", one annotator judged **17% strict group-targeted hate**, 22% personal abuse, 19% political criticism, 42% no visible hostility. The dataset's own guideline says the last three categories are not hate |
+| What the model learned | It largely reproduces HINGHATE's labelling as shipped: it flagged about 69% of the rows judged "no visible hostility" and 95% of personal-abuse rows |
+| Verdict | HINGHATE is enough to train and benchmark **within HINGHATE**. It is **not** enough to claim general hate-speech detection: there is no external test, and the shipped positive label appears broader than the dataset's documented definition |
 
 **Do not read 0.80 as "solved hate speech detection".** It means "reproduces HINGHATE's labels well on held-out HINGHATE comments".
 
@@ -78,6 +78,17 @@ Read it with `sep="\t", quoting=3, dtype=str, keep_default_na=False`. The `quoti
 > **Gotcha:** the download came as three TSV files (`hinglish_corpus_final.tsv`, `..._0.tsv`, `..._1.tsv`). They are **byte-identical** (same size, same MD5). `_0` and `_1` are *not* label splits. Use only one file; concatenating them would triple-count every row.
 
 > **No context.** The file has no video ID, no parent comment and no thread information. Comments are labelled and modelled in isolation, so meaning that depends on context is invisible to both the model and a human re-reading the data.
+
+### What the dataset documentation says
+
+The DataPort page links a `Document.pdf` that describes the dataset. The points that matter for this project:
+
+- **Collection:** records were collected through the YouTube and Reddit APIs, and every record is described as having a `source` and a `script` field.
+- **Labels were assigned by human annotation** using a written guideline. **Hate requires both gates:** (1) the content targets people as a group or as members of a group, and (2) it attacks that group's worth, humanity, belonging, rights or safety.
+- **What the guideline says is not hate** unless both gates are met: political criticism, disagreement, theological arguments, ordinary rudeness, sporting rivalry, personal insults (including an insult aimed at a named politician), and criticism of a policy.
+- **Groups considered:** religion, caste, region, language, nationality, ethnicity, tribe, sex, gender identity, sexual orientation, disability.
+- **Counts match this repository's audit:** 248,129 records, 136,680 unique texts, 18,667 hate and 229,462 non-hate. The document recommends duplicate-aware splitting, which this pipeline does.
+- **Not documented:** the number of annotators, inter-annotator agreement, whether annotators saw context (parent comment or video), and what the 4,315 records with blank `source`/`script` are.
 
 ### What the audit found
 
@@ -130,6 +141,7 @@ The GTX 1660 Ti has no tensor cores, so fp16 was about 2.8x **slower** and saved
 .
 ├── README.md
 ├── PROGRESS.md                  # running handoff notes for contributors
+├── LICENSE
 ├── requirements.txt
 ├── configs/                     # one YAML per stage (seeds, paths, hyperparameters)
 ├── src/
@@ -325,6 +337,7 @@ This does **not** mean the model ignores politics: reading the most confident fa
 
 - 100 random **test** rows with `label = 1` (export: `results/audit_100.csv`, **not tracked**; it contains raw comments).
 - One annotator, a **written guide**, **no parent context**, no access to the thread or video.
+- This tagging guide is the annotator's own and is **not** the dataset's two-gate guideline, so the tags are not a direct test of conformity to it.
 - Four tags, applied in order, stopping at the first match:
 
 | Tag | Meaning |
@@ -357,7 +370,7 @@ Marks: 25 rows `?`, 7 rows `~`, 4 rows `!`. Of the 42 `neutral` rows, 18 carry `
 | `political_criticism` | 14/19 (74%) | 14/19 | 0.989 |
 | `neutral` | 29/42 (69%) | 14/21 (67%) | 0.991 |
 
-**Reading:** the model partly tracks hostility (personal abuse is flagged most, neutral least) but still flags about two thirds of the rows judged to show no visible hostility, so it follows the dataset's label more than a strict hate definition. Differences between adjacent tags (for example group hate vs neutral) are within the intervals and should not be over-interpreted.
+**Reading:** the model partly tracks hostility (personal abuse is flagged most, neutral least) but still flags about two thirds of the rows judged to show no visible hostility, so it follows the dataset's label as shipped more than the documented hate definition. Differences between adjacent tags (for example group hate vs neutral) are within the intervals and should not be over-interpreted.
 
 **Limits:** single annotator (no agreement score), no parent context, n=100, and **only positive labels were audited**: nothing is known about hate hiding among the 0 labels.
 
@@ -371,18 +384,20 @@ Marks: 25 rows `?`, 7 rows `~`, 4 rows `!`. Of the 42 `neutral` rows, 18 carry `
 |---|---|
 | Roman hate F1 far below Devanagari -> need more Roman data | Not triggered: paired CI [-0.064, +0.016] includes zero |
 | Seed std of hate F1 above about 2 points -> unstable | Not triggered: std 0.0034 (but see the wider bootstrap CI above) |
-| Errors dominated by label problems -> need a cleaner benchmark | **Supported, mainly by the label audit**: only 17% of audited positives are strict group hate. The error read adds that false negatives are model weaknesses, so errors are mixed, not purely label-driven |
+| Errors dominated by label problems -> need a cleaner benchmark | **Supported, mainly by the label audit**: only 17% of audited positives are strict group hate, and 62-83 of 100 fall in categories the dataset's own guideline excludes. The error read adds that false negatives are model weaknesses, so errors are mixed, not purely label-driven |
 | Otherwise HINGHATE is enough | Not applicable |
 
-**Verdict:** HINGHATE is enough to **train and benchmark within HINGHATE** (the model is stable and clearly beats a strong baseline). It is **not enough** to support claims about hate-speech detection in general: the positive label is broader than a strict definition, and nothing has been tested outside this dataset. A second benchmark with a different, stricter label scheme (for example HASOC) is needed before any wider claim.
+**Verdict:** HINGHATE is enough to **train and benchmark within HINGHATE** (the model is stable and clearly beats a strong baseline). It is **not enough** to support claims about hate-speech detection in general: the shipped positive label appears broader than the documented definition, and nothing has been tested outside this dataset. A second benchmark with a different, stricter label scheme (for example HASOC) is needed before any wider claim.
 
-**Suggested wording for the task:** "detecting hostile or polarizing Hinglish comments, as labelled in HINGHATE", not "hate speech detection".
+**Label scope vs the dataset's own definition.** By a single annotator's reading, without context, 62-83 of 100 audited positives fall into categories the guideline excludes (political criticism 19, personal abuse 22, no visible hostility 42, of which 21 carry at least one mark: 18 with `?`, 6 with `~`). The shipped labels therefore appear broader than the documented definition. The audit cannot say why: annotators may have seen context that is not in the file, or the guideline may have been applied loosely.
+
+**Suggested wording for the task:** "detecting hostile or polarizing Hinglish comments, as labelled in HINGHATE" (the dataset documents a narrower definition of hate than its labels appear to follow), not "hate speech detection".
 
 **Not established**
 
 - **External generalization.** No cross-dataset or cross-platform test has been run. About 94% of the data is YouTube.
-- **Label provenance.** How HINGHATE was annotated (and with what context) is unverified. Annotation guidelines and annotator details are not documented in the files we have; the dataset page and paper have not been checked yet.
-- **Label quality at scale.** The audit is one annotator, 100 positive rows, no parent context, so it is indicative, not a measured error rate. The label scope may reflect the dataset's own definition, or context the annotators saw and we do not.
+- **Label provenance.** The dataset documentation (`Document.pdf` on the IEEE DataPort page) describes human annotation with a two-gate guideline: hate requires that the content (1) targets people as a group or as members of a group and (2) attacks that group's worth, humanity, belonging, rights or safety. It states that political criticism, disagreement, ordinary rudeness and insults aimed at an individual, including a named politician, are not hate unless both gates are met. The number of annotators, agreement, and whether annotators saw context are not documented, the 4,315 rows with blank source/script are not explained, and the dataset authors were not contacted.
+- **Label quality at scale.** The audit is one annotator, 100 positive rows, no parent context, so it is indicative, not a measured error rate. It suggests the labels as shipped are broader than the documented guideline, unless annotators saw context that this file does not contain.
 - **Hate hidden in label 0.** Never audited.
 - **Reddit.** 6 test hate rows; any statement is unsupported.
 - **The 15-row near-neighbour result.** Too small to support a claim.
@@ -442,6 +457,7 @@ The audit (Stage 1), MuRIL fine-tuning (Stage 4) and error analysis (Stage 5) fo
 ## Roadmap
 
 - [x] Stages 1-6 on HINGHATE, including bootstrap CIs and a 100-row label audit
+- [ ] **Re-tag with the dataset's own rule.** Re-tag the 100 audit rows with the two-gate guideline (does it target a group by identity? does it attack that group's worth, humanity, belonging, rights or safety?) to measure conformity to the documented definition directly.
 - [ ] **External test set.** HASOC (Hindi/Hinglish tracks) requires registration with the organizers: <https://hasocfire.github.io>. Fix the label mapping *before* looking at results, and report a strict and a broad view.
 - [ ] **Second annotator.** Have another person tag 30-50 of the same audit rows blind and report Cohen's kappa.
 - [ ] **Context.** HASOC's conversational subtasks include parent comments, which can show how much of the apparent label noise is missing context.
@@ -454,10 +470,10 @@ The audit (Stage 1), MuRIL fine-tuning (Stage 4) and error analysis (Stage 5) fo
 
 ## Data, ethics and licensing
 
-- **No dataset content is committed.** HINGHATE is distributed for research under its own terms. Do not push the raw data, processed parquet files, or anything containing comment text (including prediction files, error exports, label samples and `audit_100.csv`) to a public repository. These are excluded in `.gitignore`.
-- **Offensive content.** The data contains abusive, hateful and distressing language. Take breaks when reading samples.
+- **No dataset content is committed.** HINGHATE is provided for research and educational purposes; its IEEE DataPort page lists no explicit license and the files require a subscription. Do not push the raw data, processed parquet files, or anything containing comment text (including prediction files, error exports, label samples and `audit_100.csv`) to a public repository. These are excluded in `.gitignore`.
+- **Offensive content.** The data contains abusive, hateful and distressing language. Take breaks when reading samples, and avoid reproducing harmful examples unnecessarily.
 - **Not a production moderation system.** The model is trained on broad labels from mainly one platform and has no external validation. It should not be used to take automated action against real users.
-- Follow each platform's terms and the dataset's license when using or citing the data.
+- Follow each platform's terms and the dataset's terms when using or citing the data.
 
 Recommended `.gitignore` entries:
 
@@ -471,7 +487,7 @@ results/runs/
 results/*.parquet
 results/*sample*.csv
 results/errors.csv
-results/audit_100.csv
+results/audit_100*.csv
 __pycache__/
 ```
 
@@ -479,9 +495,11 @@ __pycache__/
 
 ## Authors, license, citation
 
-- **Authors / contributors:** 
-- **License (code):** 
-- **Dataset:** HINGHATE, IEEE DataPort (link). 
-- **Model:** MuRIL, `google/muril-base-cased` (Khanuja et al., 2021).
+- **Authors / contributors:** Ayushmaan ([@Ayushu69](https://github.com/Ayushu69)): project lead, data audit, modelling, label audit
+- **License (code):** MIT (see `LICENSE`). Applies to the code only. The HINGHATE dataset is not included and is subject to its own terms on IEEE DataPort.
+- **Dataset:** HINGHATE (IEEE DataPort, doi:10.21227/7ye1-4489). The page lists no explicit license; it states the data is provided for research and educational purposes, and the files require an IEEE DataPort subscription. This repository does not redistribute any of it.
+- **Citation:** Shubham Shukla, Sushama Nagpal, Sangeeta Sabharwal (2026). HINGHATE: One of the Largest Hinglish Hate Speech Datasets from YouTube and Reddit. IEEE Dataport. https://doi.org/10.21227/7ye1-4489
+- **Model:** MuRIL: Multilingual Representations for Indian Languages, `google/muril-base-cased` (Khanuja et al., 2021).
+- **Tooling note:** pipeline code was developed with AI coding assistants; results and conclusions were reviewed by the author.
 
 For day-to-day handoff notes, decisions and the exact next task, see `PROGRESS.md`.
