@@ -28,7 +28,7 @@ Evaluated using character 2–5 n-gram TF-IDF cosine similarity against the comp
 - **Test Label = 0 (Non-Hate, $N = 143$):** Nearest train neighbour agreed **100.00%** (143/143, Wilson 95% CI: **[97.38%, 100.00%]**).
 - **Test Label = 1 (Hate, $N = 15$):** Nearest train neighbour agreed **80.00%** (12/15, Wilson 95% CI: **[54.81%, 92.95%]**). Disagreement: 3/15 = **20.00%** (Wilson 95% CI: **[7.05%, 45.19%]**).
 
-> **Important Caveat:** Because $N=15$ is a very small sample size, the Wilson 95% CI is wide ([54.81%, 92.95%]). No statistically robust claim about dataset-wide label error rate can be drawn from this small slice alone.
+> **Important Caveat:** The nearest-neighbour analysis (character overlap only) shows no sign of near-duplicate leakage, but performance on external benchmarks (e.g. HASOC) is untested. Furthermore, because $N=15$ is a very small sample size, the Wilson 95% CI is wide ([54.81%, 92.95%]); no statistically robust claim about dataset-wide label error rate can be drawn from this small slice alone.
 
 ---
 
@@ -83,7 +83,13 @@ Non-hate test examples ($N = 12,576$) were audited for lexical bias against poli
 
 ## 5. Label Quality Audit (100 Random Hate-Labelled Test Rows) & Failure Analysis
 
-A hand-audit of 100 randomly sampled positive test rows (`label = 1`) in [results/audit_100.csv](file:///c:/nlp-moderation/results/audit_100.csv) categorized ground-truth annotations under four mutually exclusive categories:
+### A. Documented Annotation Guideline vs. Shipped Labels
+According to the dataset documentation (Document_1.pdf on the IEEE DataPort page):
+- Labels are human-annotated using a **two-gate guideline**: hate requires (a) the content targets people as a group or as members of a group AND (b) it attacks that group's worth, humanity, belonging, rights or safety.
+- The documentation explicitly states that political criticism, disagreement, personal insults, and insults aimed at a named politician are **NOT** hate unless both gates are met.
+
+### B. Audit Breakdown & Findings
+A hand-audit of 100 randomly sampled positive test rows (`label = 1`) in [results/audit_100.csv](audit_100.csv) categorized ground-truth annotations under four mutually exclusive categories:
 
 | Category Tag | Count | Proportion | Wilson 95% CI | Model Flagged at $\tau=0.746$ | Mean Ensemble Prob | Median Ensemble Prob |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -94,20 +100,21 @@ A hand-audit of 100 randomly sampled positive test rows (`label = 1`) in [result
 
 - **Audit Marks / Flags:** **? 25**, **~ 7**, **! 4** (definitions: `?` contestable, `~` context could flip it, `!` flagged extreme).
 - **Core Findings on Dataset Labels:**
-  1. Only **17%** (Wilson 95% CI: [11%, 26%]) of audited positive instances represent strict group-based hate targeting protected characteristics.
-  2. The remaining **83%** of the positive class comprises comments with no visible hostility under the written guide (42%), personal abuse / profanity (22%), and partisan political criticism (19%).
-  3. The model flagged 95.5% of personal abuse, 82.4% of group hate, 73.7% of political criticism, and 69.0% of neutral rows, reflecting that the positive training label in HINGHATE is significantly broader than strict hate speech.
+  1. Only **17%** (Wilson 95% CI: [11%, 26%]) of audited positive instances represent strict group-based hate meeting both gates.
+  2. By a single annotator's reading without context, **62–83 of 100 audited positives fall into categories the guideline excludes** (political criticism 19, personal abuse 22, no visible hostility 42, of which 21 carry at least one mark: 18 with ?, 6 with ~), so the shipped labels appear broader than the documented definition.
+  3. The model flagged 95.5% of personal abuse, 82.4% of group hate, 73.7% of political criticism, and 69.0% of neutral rows, reflecting that the model learns the broader positive training signal present in HINGHATE.
+  4. **Label Provenance Caveats:** Annotator count, agreement, and whether context was shown are not documented; the 4,315 blank source/script rows are not explained; the dataset authors were not contacted.
 
-- **Error Analysis & Failure Modes:**
-  1. **Top-50 FP Read Caveat:** The top-50 false positives in [results/errors.csv](file:///c:/nlp-moderation/results/errors.csv) are sorted by model confidence ($\bar{p} > 0.95$ on ground truth `0`). This sample is selected specifically by extreme model certainty and is **not representative** of the overall distribution of false-positive errors.
-  2. **False Negatives are Model Weaknesses:** The top false negatives ($\bar{p} < 0.15$ on ground truth `1`) represent genuine model weaknesses:
-     - Characters separated by spaces to bypass subword tokenizers (e.g., `l a u d e`, `m u l l a`).
-     - Heavily misspelled or phonetically camouflaged slur variants.
-     - Sarcastic or implicit abuse lacking overt abusive vocabulary.
-  3. **Length Sensitivity:** Short comments ($\le 10$ words) exhibit lower Hate-F1 (0.7806) due to ambiguous insults without sufficient lexical context.
+### C. Error Analysis & Failure Modes
+1. **Top-50 FP Read Caveat:** The top-50 false positives in [results/errors.csv](errors.csv) are sorted by model confidence ($\bar{p} > 0.95$ on ground truth `0`). This sample is selected specifically by extreme model certainty and is **not representative** of the overall distribution of false-positive errors.
+2. **False Negatives are Model Weaknesses:** The top false negatives ($\bar{p} < 0.15$ on ground truth `1`) represent genuine model weaknesses:
+   - Characters separated by spaces to bypass subword tokenizers (e.g., `l a u d e`, `m u l l a`).
+   - Heavily misspelled or phonetically camouflaged slur variants.
+   - Sarcastic or implicit abuse lacking overt abusive vocabulary.
+3. **Length Sensitivity:** Short comments ($\le 10$ words) exhibit lower Hate-F1 (0.7806) due to ambiguous insults without sufficient lexical context.
 
 ---
 
 ## 6. Generated Inspection Datasets
-- Top 50 False Positives & Top 50 False Negatives: [results/errors.csv](file:///c:/nlp-moderation/results/errors.csv)
-- Manual Audit Sample (100 Random Hate-Labelled Test Rows): [results/audit_100.csv](file:///c:/nlp-moderation/results/audit_100.csv)
+- Top 50 False Positives & Top 50 False Negatives: [results/errors.csv](errors.csv)
+- Manual Audit Sample (100 Random Hate-Labelled Test Rows): [results/audit_100.csv](audit_100.csv)

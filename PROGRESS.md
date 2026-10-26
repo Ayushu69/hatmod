@@ -26,10 +26,10 @@
   - Imputed blank `source` and `script` to `"unknown"` (0 rows dropped).
 - **Normalized-Key Deduplication:** Deduplicated on lowercase, punctuation-stripped, space-normalized keys $\to$ **136,632 unique examples** (0 label conflicts, 111,497 total rows removed).
 - **Stratified 80/10/10 Split on (label, script), Seed 42:**
-  - **Train (80%):** 109,305 rows (8,701 hate, 7.96%) $\to$ [train.parquet](file:///c:/nlp-moderation/data/processed/train.parquet)
-  - **Train Subsampled (1:3 ratio):** 34,804 rows (8,701 hate, 26,103 non-hate, 25.00%) $\to$ [train_subsampled.parquet](file:///c:/nlp-moderation/data/processed/train_subsampled.parquet)
-  - **Validation (10%):** 13,663 rows (1,088 hate, 7.96%) $\to$ [val.parquet](file:///c:/nlp-moderation/data/processed/val.parquet)
-  - **Test (10%):** 13,664 rows (1,088 hate, 7.96%) $\to$ [test.parquet](file:///c:/nlp-moderation/data/processed/test.parquet)
+  - **Train (80%):** 109,305 rows (8,701 hate, 7.96%) $\to$ [train.parquet](data/processed/train.parquet)
+  - **Train Subsampled (1:3 ratio):** 34,804 rows (8,701 hate, 26,103 non-hate, 25.00%) $\to$ [train_subsampled.parquet](data/processed/train_subsampled.parquet)
+  - **Validation (10%):** 13,663 rows (1,088 hate, 7.96%) $\to$ [val.parquet](data/processed/val.parquet)
+  - **Test (10%):** 13,664 rows (1,088 hate, 7.96%) $\to$ [test.parquet](data/processed/test.parquet)
   - **Zero Leakage:** Exactly 0 normalized key overlap across train, val, and test splits.
 - **MuRIL Token-Length Audit (`google/muril-base-cased`):**
   - Train token percentiles: p50 = 20, p90 = 50, p95 = 67, p99 = 105.
@@ -82,9 +82,9 @@
 
 ## 3. Known Caveats & Risks
 
-1. **Label Noise / Broad Hate Definition:** Qualitative inspection of [label_sample.csv](file:///c:/nlp-moderation/results/label_sample.csv) shows substantial label noise: aggressive political debate, partisan slogans ("Congress Mukt Bharat"), and counter-speech were frequently annotated as hate speech (`label=1`).
-2. **Platform & Script Confound:** YouTube dominates the corpus (95.3% of unique examples) and contains virtually all the hate signal (10,724 hate rows). Reddit contains only 41 hate rows. Script is confounded with platform and topic.
-3. **External Generalization Unverified:** While nearest-neighbour quartile analysis confirms in-distribution generalization, performance on standard external benchmarks (e.g. HASOC, HEOT) remains pending.
+1. **Label Noise / Broad Hate Definition:** According to Document_1.pdf on the IEEE DataPort page, labels are human-annotated with a two-gate guideline: hate requires (a) the content targets people as a group or as members of a group AND (b) it attacks that group's worth, humanity, belonging, rights or safety. Political criticism, disagreement, personal insults and insults aimed at a named politician are explicitly NOT hate unless both gates are met. However, by a single annotator's reading without context, 62–83 of 100 audited positives fall into categories the guideline excludes: of 100 audited positives in [audit_100.csv](results/audit_100.csv), 17 group hate, 22 personal abuse, 19 political criticism, 42 no visible hostility (21–42% depending on whether ?/~ rows are counted).
+2. **Platform & Script Confound:** YouTube dominates the corpus (95.3% of unique examples) and contains virtually all the hate signal (10,724 hate rows). Reddit contains only 41 hate rows. Script is a confound with hate rate (post-dedupe hate rate is 14.07% in Devanagari and 14.24% in Mixed, compared to only 5.84% in Roman).
+3. **External Generalization Unverified:** The nearest-neighbour analysis (character overlap only) shows no sign of near-duplicate leakage, but performance on external benchmarks (e.g. HASOC) is untested.
 
 ---
 
@@ -153,7 +153,7 @@ c:\nlp-moderation\
   - Non-hate test rows with Any political terms (Roman+Deva): **1.52%** (20/1,315, Wilson 95% CI: **[0.99%, 2.34%]**).
   - Non-hate test rows without Any political terms: **1.47%** (165/11,261, Wilson 95% CI: **[1.26%, 1.70%]**).
   - Relative FPR Ratio = **1.04x** $\to$ **no detectable difference** (overlapping Wilson 95% CIs).
-- **Artifacts Generated:** [results/error_analysis.md](file:///c:/nlp-moderation/results/error_analysis.md), [results/errors.csv](file:///c:/nlp-moderation/results/errors.csv) (top 50 FP / top 50 FN), and [results/audit_100.csv](file:///c:/nlp-moderation/results/audit_100.csv) (100 random hate test rows with empty `my_tag` column).
+- **Artifacts Generated:** [results/error_analysis.md](results/error_analysis.md), [results/errors.csv](results/errors.csv) (top 50 FP / top 50 FN), and [results/audit_100.csv](results/audit_100.csv) (100 random hate test rows with empty `my_tag` column).
 
 ---
 
@@ -173,32 +173,33 @@ c:\nlp-moderation\
 
 3. **Rule 3 (Label Quality Audit vs. Model Weakness):**
    - *Rule:* If errors are dominated by label noise rather than model weakness $\to$ need a cleaner benchmark.
-   - *Evidence:* A manual hand-audit of 100 randomly sampled hate-labelled test rows (`label = 1`) in [results/audit_100.csv](file:///c:/nlp-moderation/results/audit_100.csv) reveals:
+   - *Evidence:* According to dataset documentation (Document_1.pdf on IEEE DataPort), labels are human-annotated with a two-gate guideline: hate requires (a) the content targets people as a group or as members of a group AND (b) it attacks that group's worth, humanity, belonging, rights or safety. The documentation states that political criticism, disagreement, personal insults, and insults aimed at a named politician are NOT hate unless both gates are met.
+   - A manual hand-audit of 100 randomly sampled hate-labelled test rows (`label = 1`) in [results/audit_100.csv](results/audit_100.csv) reveals:
      - `neutral`: no visible hostility under the written guide (21–42% depending on whether ?/~ rows are counted; 18 of 42 carry ?, 6 carry ~): **42** / 100 (Wilson 95% CI: [0.33, 0.52])
      - `personal_abuse` (interpersonal toxicity): **22** / 100 (Wilson 95% CI: [0.15, 0.31])
      - `political_criticism` (partisan debate): **19** / 100 (Wilson 95% CI: [0.13, 0.28])
      - `group_hate` (strict identity-based hate): **17** / 100 (Wilson 95% CI: [0.11, 0.26])
      - Audit marks across 100 rows: **? 25**, **~ 7**, **! 4** (definitions: `?` contestable, `~` context could flip it, `!` flagged extreme).
-     - Only 17% of audited positive examples represent strict group-based hate; 83% comprise comments with no visible hostility, personal insults, or political debate.
+     - By a single annotator's reading without context, **62–83 of 100 audited positives fall into categories the guideline excludes** (political criticism 19, personal abuse 22, no visible hostility 42, of which 21 carry at least one mark: 18 with ?, 6 with ~), so the shipped labels appear broader than the documented definition. Only 17% of audited positive examples represent strict group-based hate meeting both gates.
      - Note on False Positives: Inspection of the top-50 false positives in `results/errors.csv` is selected by extreme model confidence ($\bar{p} > 0.95$) and is **not representative** of all false-positive errors.
      - Note on False Negatives: Top false negatives (e.g., characters separated by spaces `l a u d e`, phonetic camouflage, implicit abusive sarcasm) represent **genuine model weaknesses**.
-   - *Verdict:* Rule 3 is **TRIGGERED**. Ground-truth positive labels in HINGHATE are heavily dominated by non-hate and personal/political abuse rather than strict group hate, setting a noisy optimization target.
+   - *Verdict:* Rule 3 is **TRIGGERED**. Ground-truth positive labels in HINGHATE are heavily dominated by categories excluded by the guideline (non-hate and personal/political abuse), setting a noisy target.
 
 4. **Rule 4 (Final Dataset Verdict):**
    - *Rule:* Otherwise HINGHATE is enough, and an external test only adds a generalization claim.
-   - *Verdict:* **HINGHATE is enough to train and benchmark within HINGHATE; not enough for general hate-speech claims (no external test; positive label broader than a strict definition).**
+   - *Verdict:* **HINGHATE is enough to train and benchmark within HINGHATE; not enough for general hate-speech claims (no external test; positive label broader than a strict definition).** By a single annotator's reading without context, 62–83 of 100 audited positives fall into categories the guideline excludes (political criticism 19, personal abuse 22, no visible hostility 42, of which 21 carry at least one mark: 18 with ?, 6 with ~), so the shipped labels appear broader than the documented definition.
 
 ---
 
 ### Explicitly What is NOT Established
 
 1. **External Generalisation:** The pipeline has only been tested in-distribution on the HINGHATE test split. Zero cross-dataset or cross-domain generalization has been verified.
-2. **Label Quality:** A formal audit of 100 positive rows in [results/audit_100.csv](file:///c:/nlp-moderation/results/audit_100.csv) shows broad label definitions, but ground-truth quality across the entire dataset remains unverified.
+2. **Label Quality:** A formal audit of 100 positive rows in [results/audit_100.csv](results/audit_100.csv) shows broad label definitions, but ground-truth quality across the entire dataset remains unverified.
 3. **Single Annotator:** The audit of 100 rows was performed by a single annotator without second-pass adjudication or inter-annotator agreement metrics ($\kappa$).
 4. **Positives-Only Audit:** Only rows with ground truth `label = 1` were audited; no systematic audit of ground truth `0` rows was conducted.
 5. **No Parent Context:** Comments were annotated and classified in total isolation without the parent comment, video title, or conversational context.
 6. **No Thread IDs:** The dataset does not preserve discussion thread IDs or video IDs, preventing hierarchical modeling or clustering of clustered conversations.
-7. **Unverified Label Provenance:** Annotation guidelines/demographics not documented in the files we have; dataset page/paper not yet checked.
+7. **Label Provenance Caveats:** Annotator count, agreement, and whether context was shown are not documented; the 4,315 blank source/script rows are not explained; the dataset authors were not contacted.
 8. **Reddit Performance:** Reddit contains only 41 hate rows in the entire deduplicated corpus and only 6 hate rows in the test split. Test Hate-F1 on Reddit is **0.4444** (precision 0.6667, recall 0.3333). Generalization to Reddit or forum-style discourse is entirely unestablished.
 9. **No Other Models:** Only MuRIL (`google/muril-base-cased`) has been evaluated; comparison against `xlm-roberta-base`, `HingRoBERTa`, or decoder baselines is unperformed.
-10. **Any Claim from the 15-Row Near-Neighbour Analysis:** The finding that 3/15 (20.0%) near-neighbour hate instances disagreed with train labels has a Wilson 95% CI of **[7.05%, 45.19%]** (agreement Wilson 95% CI: **[54.81%, 92.95%]**). Because $N=15$ is tiny, no general quantitative claim about dataset-wide label error rate can be inferred from this statistic.
+10. **Nearest-Neighbour Analysis Scope:** The nearest-neighbour analysis (character overlap only) shows no sign of near-duplicate leakage, but performance on external benchmarks (e.g. HASOC) is untested. Furthermore, the finding that 3/15 (20.0%) near-neighbour hate instances disagreed with train labels has a Wilson 95% CI of **[7.05%, 45.19%]** (agreement Wilson 95% CI: **[54.81%, 92.95%]**). Because $N=15$ is tiny, no general quantitative claim about dataset-wide label error rate can be inferred from this statistic.
